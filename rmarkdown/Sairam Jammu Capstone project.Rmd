@@ -1,0 +1,144 @@
+---
+title: "Predictive Modeling of WOMart Daily Supplement Sales"
+author: "Sairam Jammu"
+date: "2025-08-02"
+output: html_document
+runtime: shiny
+---
+
+### 📦 Load Required Libraries
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(data.table)
+library(xgboost)
+library(randomForest)
+library(caret)
+library(Metrics)
+library(ggplot2)
+library(DT)
+library(shiny)
+```
+
+### 📅 Load and Prepare Data
+
+```{r}
+train <- fread("C:/TRAIN.csv.csv")
+test <- fread("C:/TEST_FINAL.csv.csv")
+sample_sub <- fread("C:/SAMPLE.csv.csv")
+
+train$Date <- ymd(train$Date)
+test$Date <- ymd(test$Date)
+test$Sales <- NA
+
+data <- bind_rows(train, test) %>%
+  mutate(
+    Day = day(Date),
+    Month = month(Date),
+    Week = week(Date),
+    DayOfWeek = wday(Date),
+    Discount_Flag = ifelse(Discount == "Yes", 1, 0),
+    Holiday_Discount = Holiday * Discount_Flag,
+    Store_Type = as.factor(Store_Type),
+    Region = as.factor(Region_Code),
+    Store_Type_num = as.numeric(Store_Type),
+    Region_num = as.numeric(Region)
+  )
+```
+
+### 🧠 Feature Engineering (Required Columns)
+
+```{r}
+# Add engineered columns required for modeling
+train <- train %>%
+  mutate(
+    Discount_Flag = ifelse(Discount == "Yes", 1, 0),
+    Holiday_Discount = Holiday * Discount_Flag,
+    Day = day(Date),
+    Month = month(Date),
+    Week = week(Date),
+    DayOfWeek = wday(Date)
+  )
+
+test <- test %>%
+  mutate(
+    Discount_Flag = ifelse(Discount == "Yes", 1, 0),
+    Holiday_Discount = Holiday * Discount_Flag,
+    Day = day(Date),
+    Month = month(Date),
+    Week = week(Date),
+    DayOfWeek = wday(Date)
+  )
+```
+
+### 🎯 Predict Sales Using XGBoost
+
+```{r}
+features <- c("Store_id", "Discount_Flag", "Holiday", "Holiday_Discount", "Day", "Month", "Week", "DayOfWeek")
+dtrain <- xgb.DMatrix(data = as.matrix(train[, ..features]), label = train$Sales)
+
+params <- list(objective = "reg:squarederror", eta = 0.1, max_depth = 6)
+xgb_model <- xgboost(data = dtrain, params = params, nrounds = 100, verbose = 0)
+
+dtest <- xgb.DMatrix(data = as.matrix(test[, ..features]))
+test[, Sales := predict(xgb_model, dtest)]
+test[Sales < 0, Sales := 0]
+```
+
+### 📊 Exploratory Data Plots
+
+```{r}
+ggplot(train, aes(x = Date, y = Sales)) +
+  geom_line(color = "blue") +
+  labs(title = "Sales Over Time")
+
+ggplot(train, aes(x = Store_Type, y = Sales)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(title = "Sales by Store Type")
+
+ggplot(train, aes(x = Region_Code, y = Sales)) +
+  geom_boxplot(fill = "orange") +
+  labs(title = "Sales by Region")
+```
+
+### 🌐 Shiny Dashboard UI
+
+```{r, echo=FALSE}
+ui <- fluidPage(
+  titlePanel("WOMart Sales Forecast Dashboard"),
+  sidebarLayout(
+    sidebarPanel(
+      selectInput("region", "Choose Region:", choices = unique(test$Region_Code)),
+      sliderInput("month", "Month", min = 1, max = 12, value = 6),
+      checkboxInput("only_discount", "Show Only Discounted", value = FALSE)
+    ),
+    mainPanel(
+      plotOutput("forecast_plot"),
+      DT::dataTableOutput("forecast_table")
+    )
+  )
+)
+
+server <- function(input, output) {
+  filtered_data <- reactive({
+    test %>%
+      filter(
+        Region_Code == input$region,
+        month(Date) == input$month,
+        if (input$only_discount) Discount == "Yes" else TRUE
+      )
+  })
+
+  output$forecast_plot <- renderPlot({
+    ggplot(filtered_data(), aes(x = Date, y = Sales)) +
+      geom_line(color = "darkgreen") +
+      labs(title = paste("Forecasted Sales for", input$region), y = "Sales", x = "Date")
+  })
+
+  output$forecast_table <- DT::renderDT({
+    filtered_data() %>% select(ID, Date, Sales, Discount, Holiday)
+  })
+}
+
+shinyApp(ui = ui, server = server)
