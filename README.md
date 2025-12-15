@@ -1,4 +1,6 @@
 # WOMart Sales Forecasting Capstone Project
+![Sales Forecast Overview](screenshots/sales_over_time.png)
+
 Predictive analytics and forecasting framework for retail sales using XGBoost, LightGBM, ARIMA, and R Shiny.
 
 
