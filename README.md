@@ -33,6 +33,24 @@ The objective is to support inventory optimization, regional planning, and promo
 - Data-driven inventory and logistics decisions
 - Scalable framework for national retail operations
 
+
+##  Project Deliverables
+
+- **Final Report**  
+  [View Report](report/Sairam-Jammu-Capstone-Project-report.pdf)
+
+-  **Capstone Presentation**  
+  [View Presentation](presentation/Sairam-Jammu-Capstone-Presentation.pdf)
+
+-  **Modeling & Code (R Markdown)**  
+  See the `rmarkdown/` folder for full modeling workflow and analysis.
+
+##  Key Visualizations
+
+![Sales Over Time](screenshots/Sales-Over-time.jpg)
+![Sales by Store Type](screenshots/Sales-by-store-type.jpg)
+
 ## Author
 **Sairam Jammu**  
 MS in Business Analytics, Kent State University
+
