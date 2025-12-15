@@ -1,4 +1,8 @@
 # WOMart Sales Forecasting Capstone Project
+## Sales Over Time
+
+![Sales Over Time](screenshots/Sales-Over-time.jpg)
+
 
 Predictive analytics and forecasting framework for retail sales using XGBoost, LightGBM, ARIMA, and R Shiny.
 
