@@ -1,52 +1,56 @@
-# WOMart Sales Forecasting Capstone Project
+# WOMart Sales Forecasting Capstone
 
-Predictive analytics and forecasting framework for retail sales using XGBoost, LightGBM, ARIMA, and R Shiny.
+Retail forecasting and decision-support project for predicting daily sales across a health and nutritional supplement retail chain.
 
+## Portfolio Summary
 
-## Overview
-This capstone project develops a predictive analytics framework to forecast daily sales across a national retail chain specializing in health and nutritional supplements.
+This capstone project builds a forecasting workflow that combines machine learning, classical time-series baselines, business interpretation, and dashboard-ready outputs. The goal is to support inventory planning, regional decision-making, and promotion strategy.
 
-The objective is to support inventory optimization, regional planning, and promotion strategy using machine learning and time-series models.
+## Business Problem
+
+Retail teams need reliable forward-looking sales estimates to reduce overstocking, avoid stockouts, and plan promotions. This project focuses on store-level and regional forecasting so operational decisions can be made with clearer demand signals.
+
+## Methods
+
+Models and techniques used:
+
+- XGBoost
+- LightGBM
+- ARIMA benchmarks
+- Feature engineering for retail demand patterns
+- Model comparison with forecast-error metrics
+- Interactive dashboard delivery through R Shiny
 
 ## Key Features
+
 - Store-level and regional sales forecasting
 - 61-day forward-looking predictions
-- Ensemble modeling using XGBoost and LightGBM
-- Benchmark ARIMA time-series models
+- Ensemble modeling workflow
+- Benchmark time-series models
 - Interactive R Shiny dashboard for decision support
-- Ethical AI practices with fairness and interpretability
+- Business recommendations for inventory and planning
 
-## Tools & Technologies
-- R (data.table, xgboost, lightgbm, caret, lubridate)
-- Time Series Analysis (ARIMA)
-- R Shiny (interactive dashboards)
-- Power BI (visual analytics)
-- Predictive Modeling & Feature Engineering
+## Tools
 
-## Business Impact
-- Reduced risk of overstocking and stockouts
-- Improved promotion planning by region
-- Data-driven inventory and logistics decisions
-- Scalable framework for national retail operations
+R, data.table, xgboost, lightgbm, caret, lubridate, ARIMA, R Shiny, Power BI.
 
+## Deliverables
 
-##  Project Deliverables
+- [Final Report](report/Sairam-Jammu-Capstone-Project-report.pdf)
+- [Capstone Presentation](presentation/Sairam-Jammu-Capstone-Presentation.pdf)
+- Modeling and analysis files in the `rmarkdown/` folder
 
-- **Final Report**  
-  [View Report](report/Sairam-Jammu-Capstone-Project-report.pdf)
-
--  **Capstone Presentation**  
-  [View Presentation](presentation/Sairam-Jammu-Capstone-Presentation.pdf)
-
--  **Modeling & Code (R Markdown)**  
-  See the `rmarkdown/` folder for full modeling workflow and analysis.
-
-##  Key Visualizations
+## Visual Evidence
 
 ![Sales Over Time](screenshots/Sales-Over-time.jpg)
+
 ![Sales by Store Type](screenshots/Sales-by-store-type.jpg)
 
-## Author
-**Sairam Jammu**  
-MS in Business Analytics, Kent State University
+## Portfolio Value
 
+This project demonstrates the full analytics workflow: business framing, data preparation, model development, dashboard delivery, and communication of operational impact.
+
+## Author
+
+Sairam Jammu  
+M.S. Business Analytics, Kent State University
