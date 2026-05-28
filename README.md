@@ -2,6 +2,8 @@
 
 Retail forecasting and decision-support project for predicting daily sales across a health and nutritional supplement retail chain.
 
+![Sales Over Time](screenshots/Sales-Over-time.jpg)
+
 ## Portfolio Summary
 
 This capstone project builds a forecasting workflow that combines machine learning, classical time-series baselines, business interpretation, and dashboard-ready outputs. The goal is to support inventory planning, regional decision-making, and promotion strategy.
@@ -34,6 +36,21 @@ Models and techniques used:
 
 R, data.table, xgboost, lightgbm, caret, lubridate, ARIMA, R Shiny, Power BI.
 
+## Quick Start
+
+1. Clone the repository.
+2. Open R or RStudio from the repository root.
+3. Install required packages:
+
+```r
+source("requirements.R")
+```
+
+4. Open `rmarkdown/Sairam-Jammu-Capstone-project.Rmd`.
+5. Knit or run the Shiny document.
+
+The R Markdown uses relative paths and can read data from the `data/` folder when run from either the repository root or the `rmarkdown/` folder.
+
 ## Deliverables
 
 - [Final Report](report/Sairam-Jammu-Capstone-Project-report.pdf)
@@ -54,8 +71,6 @@ R, data.table, xgboost, lightgbm, caret, lubridate, ARIMA, R Shiny, Power BI.
 ## Visual Evidence
 
 ### Sales Trend
-
-![Sales Over Time](screenshots/Sales-Over-time.jpg)
 
 The sales trend shows frequent spikes and changing demand patterns across the 2018-2019 period, supporting the use of calendar, holiday, region, discount, and store-level features.
 
@@ -78,6 +93,12 @@ The boxplots show meaningful differences by region and store type. Store type S4
 | ![Shiny dashboard for region R3](screenshots/Sairam-Jammu-Capstone-Image-R3.jpg) | ![Shiny dashboard for region R4](screenshots/Sairam-Jammu-Capstone-Image-R4.jpg) |
 
 The dashboard views show region filtering, month selection, discount filtering, sales trend visualization, and searchable tabular output.
+
+## Business Takeaways
+
+- Sales patterns vary meaningfully across store type and region, making segmented forecasting valuable for planning.
+- Discount, holiday, and calendar features are important demand signals for short-term sales forecasting.
+- The dashboard format turns model output into an operational view for filtering, reviewing, and acting on forecasts.
 
 ## Portfolio Value
 
