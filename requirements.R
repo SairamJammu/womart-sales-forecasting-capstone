@@ -2,6 +2,8 @@ packages <- c(
   "tidyverse",
   "lubridate",
   "data.table",
+  "leaflet",
+  "htmlwidgets",
   "xgboost",
   "randomForest",
   "caret",

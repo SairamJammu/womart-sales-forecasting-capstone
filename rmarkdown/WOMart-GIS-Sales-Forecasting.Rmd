@@ -1,0 +1,578 @@
+---
+title: "GIS-Enhanced WOMart Sales Forecasting"
+author: "Sairam Jammu"
+date: "2026-05-28"
+output:
+  html_document:
+    toc: true
+    toc_float: true
+    number_sections: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(
+  echo = TRUE,
+  warning = FALSE,
+  message = FALSE,
+  fig.width = 10,
+  fig.height = 6
+)
+
+set.seed(2026)
+
+output_dir <- "gis-outputs"
+plot_dir <- file.path(output_dir, "plots")
+map_dir <- file.path(output_dir, "maps")
+table_dir <- file.path(output_dir, "tables")
+
+dir.create(output_dir, showWarnings = FALSE)
+dir.create(plot_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(map_dir, showWarnings = FALSE, recursive = TRUE)
+dir.create(table_dir, showWarnings = FALSE, recursive = TRUE)
+```
+
+# Executive Summary
+
+This project extends the WOMart sales forecasting workflow into a GIS-enabled retail analytics system. The original dataset supports store-level forecasting with sales history, holidays, discounts, store type, and region. This version adds simulated store coordinates and spatial features so the model output can support location-aware inventory planning, regional demand analysis, and GIS portfolio storytelling.
+
+Because the source data does not include real store latitude and longitude, this analysis creates reproducible simulated coordinates by region. The GIS layer should be interpreted as a spatial analytics demonstration rather than a claim of real store locations.
+
+# Load Required Packages
+
+```{r packages}
+packages <- c(
+  "tidyverse",
+  "lubridate",
+  "leaflet",
+  "htmlwidgets",
+  "ggplot2",
+  "caret",
+  "xgboost",
+  "DT"
+)
+
+missing_packages <- packages[!packages %in% rownames(installed.packages())]
+
+if (length(missing_packages) > 0) {
+  install.packages(missing_packages, dependencies = TRUE)
+}
+
+library(tidyverse)
+library(lubridate)
+library(leaflet)
+library(htmlwidgets)
+library(ggplot2)
+library(caret)
+library(xgboost)
+library(DT)
+```
+
+# Load Dataset
+
+```{r load-data}
+candidate_data_paths <- c(
+  "data",
+  "Sairam-Jammu-Capstone-Data",
+  "../data",
+  "../Sairam-Jammu-Capstone-Data"
+)
+
+data_path <- candidate_data_paths[dir.exists(candidate_data_paths)][1]
+
+if (is.na(data_path)) {
+  stop("Could not locate the project data folder.")
+}
+
+train_file <- list.files(data_path, pattern = "TRAIN", full.names = TRUE)[1]
+test_file <- list.files(data_path, pattern = "TEST_FINAL", full.names = TRUE)[1]
+sample_file <- list.files(data_path, pattern = "SAMPLE", full.names = TRUE)[1]
+
+train <- read.csv(train_file)
+test <- read.csv(test_file)
+sample_submission <- read.csv(sample_file)
+
+names(train) <- make.names(names(train))
+names(test) <- make.names(names(test))
+names(sample_submission) <- make.names(names(sample_submission))
+
+data_inventory <- data.frame(
+  Dataset = c("Train", "Test", "Sample Submission"),
+  Rows = c(nrow(train), nrow(test), nrow(sample_submission)),
+  Columns = c(ncol(train), ncol(test), ncol(sample_submission))
+)
+
+write.csv(data_inventory, file.path(table_dir, "data_inventory.csv"), row.names = FALSE)
+data_inventory
+```
+
+The dataset contains historical store-level sales records plus store, region, discount, and holiday attributes. These fields are useful for both forecasting and spatial business analysis.
+
+# Clean and Feature Engineer Data
+
+```{r clean-and-feature-engineer}
+convert_binary <- function(x) {
+  x <- trimws(tolower(as.character(x)))
+  ifelse(x %in% c("1", "yes", "y", "true", "holiday", "discount"), 1, 0)
+}
+
+create_time_features <- function(df) {
+  df %>%
+    mutate(
+      Date = as.Date(Date),
+      Holiday = convert_binary(Holiday),
+      Discount = convert_binary(Discount),
+      Year = year(Date),
+      Month = month(Date),
+      Week = week(Date),
+      Day = day(Date),
+      DayOfWeek = wday(Date, label = TRUE, abbr = TRUE),
+      IsWeekend = ifelse(DayOfWeek %in% c("Sat", "Sun"), 1, 0)
+    ) %>%
+    arrange(Store_id, Date)
+}
+
+train <- create_time_features(train)
+test <- create_time_features(test)
+
+summary(train$Date)
+summary(test$Date)
+```
+
+Date, holiday, discount, weekend, and calendar features help the model capture retail seasonality, promotional effects, and operational timing.
+
+# Create GIS Store Coordinates
+
+```{r create-store-locations}
+set.seed(123)
+
+store_locations <- train %>%
+  distinct(Store_id, Store_Type, Location_Type, Region_Code) %>%
+  mutate(
+    Latitude = case_when(
+      Region_Code == "R1" ~ runif(n(), 40.1, 41.8),
+      Region_Code == "R2" ~ runif(n(), 38.5, 40.0),
+      Region_Code == "R3" ~ runif(n(), 35.5, 37.5),
+      Region_Code == "R4" ~ runif(n(), 33.5, 35.0),
+      TRUE ~ runif(n(), 36.0, 41.0)
+    ),
+    Longitude = case_when(
+      Region_Code == "R1" ~ runif(n(), -83.0, -80.0),
+      Region_Code == "R2" ~ runif(n(), -86.0, -83.0),
+      Region_Code == "R3" ~ runif(n(), -89.0, -86.0),
+      Region_Code == "R4" ~ runif(n(), -92.0, -89.0),
+      TRUE ~ runif(n(), -92.0, -80.0)
+    )
+  )
+
+write.csv(store_locations, file.path(table_dir, "simulated_store_locations.csv"), row.names = FALSE)
+head(store_locations)
+```
+
+The simulated coordinates allow the project to demonstrate mapping, spatial clustering, and location-aware forecasting logic.
+
+# Join GIS Coordinates
+
+```{r join-gis-data}
+train_gis <- train %>%
+  left_join(store_locations, by = c("Store_id", "Store_Type", "Location_Type", "Region_Code"))
+
+test_gis <- test %>%
+  left_join(store_locations, by = c("Store_id", "Store_Type", "Location_Type", "Region_Code"))
+
+center_lat <- mean(store_locations$Latitude, na.rm = TRUE)
+center_lon <- mean(store_locations$Longitude, na.rm = TRUE)
+
+add_spatial_features <- function(df) {
+  df %>%
+    mutate(
+      Distance_To_Center = sqrt((Latitude - center_lat)^2 + (Longitude - center_lon)^2),
+      Holiday_Discount = Holiday * Discount,
+      Region_Store_Key = paste(Region_Code, Store_Type, sep = "_")
+    )
+}
+
+train_gis <- add_spatial_features(train_gis)
+test_gis <- add_spatial_features(test_gis)
+
+head(train_gis)
+```
+
+The forecasting dataset is now GIS-enabled. Each row includes store coordinates and spatial distance features.
+
+# Store-Level GIS Sales Summary
+
+```{r store-sales-summary}
+store_sales_summary <- train_gis %>%
+  group_by(Store_id, Store_Type, Location_Type, Region_Code, Latitude, Longitude) %>%
+  summarise(
+    Avg_Sales = mean(Sales, na.rm = TRUE),
+    Total_Sales = sum(Sales, na.rm = TRUE),
+    Sales_SD = sd(Sales, na.rm = TRUE),
+    Discount_Rate = mean(Discount, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+write.csv(store_sales_summary, file.path(table_dir, "store_sales_summary.csv"), row.names = FALSE)
+head(store_sales_summary)
+```
+
+This table shows average sales, total sales, volatility, and discount frequency by store. It provides a location-aware view of demand performance.
+
+# Interactive GIS Store Map
+
+```{r gis-sales-map}
+sales_map <- leaflet(store_sales_summary) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = ~sqrt(Avg_Sales) / 25,
+    popup = ~paste0(
+      "<b>Store ID:</b> ", Store_id,
+      "<br><b>Region:</b> ", Region_Code,
+      "<br><b>Store Type:</b> ", Store_Type,
+      "<br><b>Average Sales:</b> ", round(Avg_Sales, 2),
+      "<br><b>Total Sales:</b> ", round(Total_Sales, 2),
+      "<br><b>Sales Volatility:</b> ", round(Sales_SD, 2),
+      "<br><b>Discount Rate:</b> ", round(Discount_Rate, 2)
+    ),
+    color = "#2563eb",
+    fillColor = "#2563eb",
+    fillOpacity = 0.7
+  )
+
+saveWidget(sales_map, file.path(map_dir, "store_sales_gis_map.html"), selfcontained = TRUE)
+sales_map
+```
+
+The interactive map helps identify high-performing store locations and regions with stronger sales activity.
+
+# Exploratory GIS Visuals
+
+```{r exploratory-visuals}
+plot_region <- ggplot(train_gis, aes(x = Region_Code, y = Sales, fill = Region_Code)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Sales Distribution by Region", x = "Region", y = "Sales") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+plot_store_type <- ggplot(train_gis, aes(x = Store_Type, y = Sales, fill = Store_Type)) +
+  geom_boxplot(show.legend = FALSE) +
+  labs(title = "Sales Distribution by Store Type", x = "Store Type", y = "Sales") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+daily_sales <- train_gis %>%
+  group_by(Date) %>%
+  summarise(Total_Sales = sum(Sales, na.rm = TRUE), .groups = "drop")
+
+plot_time <- ggplot(daily_sales, aes(x = Date, y = Total_Sales)) +
+  geom_line(color = "#2563eb") +
+  labs(title = "Total WOMart Sales Over Time", x = "Date", y = "Total Sales") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+promo_region <- train_gis %>%
+  group_by(Region_Code, Discount) %>%
+  summarise(Avg_Sales = mean(Sales, na.rm = TRUE), .groups = "drop")
+
+plot_promo <- ggplot(promo_region, aes(x = Region_Code, y = Avg_Sales, fill = as.factor(Discount))) +
+  geom_col(position = "dodge") +
+  labs(title = "Promotion Impact by Region", x = "Region", y = "Average Sales", fill = "Discount") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+holiday_region <- train_gis %>%
+  group_by(Region_Code, Holiday) %>%
+  summarise(Avg_Sales = mean(Sales, na.rm = TRUE), .groups = "drop")
+
+plot_holiday <- ggplot(holiday_region, aes(x = Region_Code, y = Avg_Sales, fill = as.factor(Holiday))) +
+  geom_col(position = "dodge") +
+  labs(title = "Holiday Impact by Region", x = "Region", y = "Average Sales", fill = "Holiday") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+ggsave(file.path(plot_dir, "sales_distribution_by_region.png"), plot_region, width = 10, height = 6, dpi = 160, bg = "white")
+ggsave(file.path(plot_dir, "sales_distribution_by_store_type.png"), plot_store_type, width = 10, height = 6, dpi = 160, bg = "white")
+ggsave(file.path(plot_dir, "total_sales_over_time.png"), plot_time, width = 10, height = 6, dpi = 160, bg = "white")
+ggsave(file.path(plot_dir, "promotion_impact_by_region.png"), plot_promo, width = 10, height = 6, dpi = 160, bg = "white")
+ggsave(file.path(plot_dir, "holiday_impact_by_region.png"), plot_holiday, width = 10, height = 6, dpi = 160, bg = "white")
+
+plot_region
+plot_store_type
+plot_time
+plot_promo
+plot_holiday
+```
+
+These visuals show differences in sales behavior by geography, store format, promotions, holidays, and time. The GIS framing makes the outputs easier to use for regional planning.
+
+# Modeling Dataset
+
+```{r model-data}
+missing_summary <- data.frame(
+  Column = names(train_gis),
+  Missing_Count = colSums(is.na(train_gis))
+)
+
+write.csv(missing_summary, file.path(table_dir, "missing_value_summary.csv"), row.names = FALSE)
+
+model_data <- train_gis %>%
+  select(
+    Sales,
+    Store_id,
+    Store_Type,
+    Location_Type,
+    Region_Code,
+    Discount,
+    Holiday,
+    Month,
+    Week,
+    Day,
+    IsWeekend,
+    Latitude,
+    Longitude,
+    Distance_To_Center,
+    Holiday_Discount
+  ) %>%
+  na.omit() %>%
+  mutate(
+    Store_id = as.factor(Store_id),
+    Store_Type = as.factor(Store_Type),
+    Location_Type = as.factor(Location_Type),
+    Region_Code = as.factor(Region_Code)
+  )
+
+train_index <- createDataPartition(model_data$Sales, p = 0.8, list = FALSE)
+train_model <- model_data[train_index, ]
+valid_model <- model_data[-train_index, ]
+
+x_train_data <- train_model %>% select(-Sales)
+x_valid_data <- valid_model %>% select(-Sales)
+
+dummy_model <- dummyVars(~ ., data = x_train_data)
+
+x_train <- predict(dummy_model, newdata = x_train_data)
+x_valid <- predict(dummy_model, newdata = x_valid_data)
+
+y_train <- train_model$Sales
+y_valid <- valid_model$Sales
+
+data.frame(
+  Split = c("Training", "Validation"),
+  Rows = c(nrow(train_model), nrow(valid_model))
+)
+```
+
+The model uses store identifiers, store type, region, promotions, holidays, time features, and GIS features to predict sales.
+
+# Train XGBoost Model
+
+```{r xgboost-model}
+dtrain <- xgb.DMatrix(data = x_train, label = y_train)
+dvalid <- xgb.DMatrix(data = x_valid, label = y_valid)
+
+params <- list(
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.05,
+  max_depth = 6,
+  subsample = 0.8,
+  colsample_bytree = 0.8
+)
+
+xgb_model <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = 300,
+  watchlist = list(train = dtrain, valid = dvalid),
+  early_stopping_rounds = 20,
+  verbose = 1
+)
+```
+
+XGBoost is suitable here because it can capture non-linear relationships among spatial, temporal, promotional, and store-level variables.
+
+# Validate Model Performance
+
+```{r validation-results}
+valid_pred <- predict(xgb_model, dvalid)
+valid_pred <- pmax(valid_pred, 0)
+
+rmse <- sqrt(mean((y_valid - valid_pred)^2))
+mae <- mean(abs(y_valid - valid_pred))
+msle <- mean((log1p(y_valid) - log1p(valid_pred))^2)
+r_squared <- cor(y_valid, valid_pred)^2
+
+metrics <- data.frame(
+  Metric = c("RMSE", "MAE", "MSLE", "R_Squared"),
+  Value = c(rmse, mae, msle, r_squared)
+)
+
+write.csv(metrics, file.path(table_dir, "model_validation_metrics.csv"), row.names = FALSE)
+metrics
+```
+
+RMSE measures larger forecast errors, MAE shows average sales-unit error, MSLE is useful for wide-ranging sales values, and R-squared indicates the share of variance captured by the model.
+
+# Actual vs Predicted Sales
+
+```{r actual-vs-predicted}
+prediction_results <- data.frame(Actual = y_valid, Predicted = valid_pred)
+
+plot_actual_predicted <- ggplot(prediction_results, aes(x = Actual, y = Predicted)) +
+  geom_point(alpha = 0.35, color = "#2563eb") +
+  geom_abline(slope = 1, intercept = 0, color = "#111827") +
+  labs(title = "Actual vs Predicted Sales", x = "Actual Sales", y = "Predicted Sales") +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+ggsave(file.path(plot_dir, "actual_vs_predicted_sales.png"), plot_actual_predicted, width = 10, height = 6, dpi = 160, bg = "white")
+plot_actual_predicted
+```
+
+Points closer to the diagonal line indicate stronger prediction accuracy. Large deviations indicate unusual demand events or local conditions.
+
+# Feature Importance
+
+```{r feature-importance}
+importance <- xgb.importance(feature_names = colnames(x_train), model = xgb_model)
+write.csv(importance, file.path(table_dir, "feature_importance.csv"), row.names = FALSE)
+
+importance_top <- importance %>%
+  as_tibble() %>%
+  slice_max(Gain, n = 20) %>%
+  mutate(Feature = reorder(Feature, Gain))
+
+plot_importance <- ggplot(importance_top, aes(x = Gain, y = Feature)) +
+  geom_col(fill = "#2563eb") +
+  labs(
+    title = "Top 20 XGBoost Feature Importance",
+    x = "Gain",
+    y = "Feature"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(plot.background = element_rect(fill = "white", color = NA))
+
+ggsave(file.path(plot_dir, "xgboost_feature_importance.png"), plot_importance, width = 10, height = 7, dpi = 160, bg = "white")
+plot_importance
+```
+
+Feature importance improves model transparency by showing which time, promotion, store, region, and spatial features most strongly influence sales predictions.
+
+# Generate Forecasts
+
+```{r final-predictions}
+test_model <- test_gis %>%
+  select(
+    Store_id,
+    Store_Type,
+    Location_Type,
+    Region_Code,
+    Discount,
+    Holiday,
+    Month,
+    Week,
+    Day,
+    IsWeekend,
+    Latitude,
+    Longitude,
+    Distance_To_Center,
+    Holiday_Discount
+  ) %>%
+  mutate(
+    Store_id = as.factor(Store_id),
+    Store_Type = as.factor(Store_Type),
+    Location_Type = as.factor(Location_Type),
+    Region_Code = as.factor(Region_Code)
+  )
+
+x_test <- predict(dummy_model, newdata = test_model)
+dtest <- xgb.DMatrix(data = x_test)
+
+test_gis$Predicted_Sales <- predict(xgb_model, dtest)
+test_gis$Predicted_Sales <- pmax(test_gis$Predicted_Sales, 0)
+
+final_output <- test_gis %>%
+  select(
+    Store_id,
+    Date,
+    Region_Code,
+    Store_Type,
+    Location_Type,
+    Latitude,
+    Longitude,
+    Predicted_Sales
+  )
+
+write.csv(final_output, file.path(output_dir, "GIS_WOMart_Forecast_Output.csv"), row.names = FALSE)
+write.csv(final_output, "GIS_WOMart_Forecast_Output.csv", row.names = FALSE)
+
+head(final_output)
+```
+
+The output includes future sales predictions with GIS coordinates, making it ready for maps, dashboards, and regional planning.
+
+# Forecast Summary by Store and Region
+
+```{r forecast-summary}
+forecast_summary <- test_gis %>%
+  group_by(Store_id, Store_Type, Location_Type, Region_Code, Latitude, Longitude) %>%
+  summarise(
+    Forecasted_Sales = mean(Predicted_Sales, na.rm = TRUE),
+    Forecast_SD = sd(Predicted_Sales, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+regional_forecast <- forecast_summary %>%
+  group_by(Region_Code) %>%
+  summarise(
+    Avg_Forecasted_Sales = mean(Forecasted_Sales, na.rm = TRUE),
+    Avg_Forecast_Volatility = mean(Forecast_SD, na.rm = TRUE),
+    Store_Count = n(),
+    .groups = "drop"
+  ) %>%
+  arrange(desc(Avg_Forecasted_Sales))
+
+write.csv(forecast_summary, file.path(table_dir, "forecast_summary_by_store.csv"), row.names = FALSE)
+write.csv(regional_forecast, file.path(table_dir, "regional_forecast_summary.csv"), row.names = FALSE)
+
+regional_forecast
+```
+
+Regions with higher average forecasted sales should receive stronger inventory planning. Regions with higher volatility may require buffer stock and closer monitoring.
+
+# Forecast GIS Map
+
+```{r forecast-map}
+forecast_map <- leaflet(forecast_summary) %>%
+  addTiles() %>%
+  addCircleMarkers(
+    lng = ~Longitude,
+    lat = ~Latitude,
+    radius = ~sqrt(Forecasted_Sales) / 25,
+    popup = ~paste0(
+      "<b>Store ID:</b> ", Store_id,
+      "<br><b>Region:</b> ", Region_Code,
+      "<br><b>Store Type:</b> ", Store_Type,
+      "<br><b>Forecasted Sales:</b> ", round(Forecasted_Sales, 2),
+      "<br><b>Forecast Volatility:</b> ", round(Forecast_SD, 2)
+    ),
+    color = "#16a34a",
+    fillColor = "#16a34a",
+    fillOpacity = 0.7
+  )
+
+saveWidget(forecast_map, file.path(map_dir, "forecast_sales_gis_map.html"), selfcontained = TRUE)
+forecast_map
+```
+
+The forecast map shows where future demand is expected to be stronger. Larger green circles indicate stores with higher predicted sales.
+
+# Final Business Interpretation
+
+The GIS-enhanced forecasting model combines sales history, store characteristics, promotions, holidays, temporal patterns, and spatial features. This converts a traditional retail forecasting task into a spatial decision-support workflow.
+
+High-performing regions and stores can be prioritized for inventory expansion. Volatile areas may require buffer stock and closer monitoring. Stable regions can use leaner replenishment strategies. The map-based outputs make the results easier to interpret for stakeholders who need to make location-based planning decisions.
+
+The simulated GIS layer also demonstrates transferable GIS experience: coordinate generation, spatial feature engineering, interactive mapping, regional segmentation, and map-ready forecast outputs.

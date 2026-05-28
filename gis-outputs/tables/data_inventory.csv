@@ -1,0 +1,4 @@
+"Dataset","Rows","Columns"
+"Train",188340,10
+"Test",22265,8
+"Sample Submission",22265,2
