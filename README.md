@@ -39,12 +39,45 @@ R, data.table, xgboost, lightgbm, caret, lubridate, ARIMA, R Shiny, Power BI.
 - [Final Report](report/Sairam-Jammu-Capstone-Project-report.pdf)
 - [Capstone Presentation](presentation/Sairam-Jammu-Capstone-Presentation.pdf)
 - Modeling and analysis files in the `rmarkdown/` folder
+- Training, test, and sample submission files in the `data/` folder
+
+## Repository Structure
+
+| Folder | Contents |
+| --- | --- |
+| `data/` | Source CSV files for model training, testing, and submission format. |
+| `presentation/` | Final capstone presentation. |
+| `report/` | Final capstone project report. |
+| `rmarkdown/` | R Markdown analysis and dashboard source. |
+| `screenshots/` | Reviewed plots and Shiny dashboard screenshots. |
 
 ## Visual Evidence
 
+### Sales Trend
+
 ![Sales Over Time](screenshots/Sales-Over-time.jpg)
 
+The sales trend shows frequent spikes and changing demand patterns across the 2018-2019 period, supporting the use of calendar, holiday, region, discount, and store-level features.
+
+### Segment Comparisons
+
+![Sales by Region](screenshots/sales-by-region.jpg)
+
 ![Sales by Store Type](screenshots/Sales-by-store-type.jpg)
+
+The boxplots show meaningful differences by region and store type. Store type S4 has the strongest central sales level and wider upper range, while regional sales include high-value outliers that are important for model evaluation.
+
+### Shiny Dashboard Screenshots
+
+| Region R1 | Region R2 |
+| --- | --- |
+| ![Shiny dashboard for region R1](screenshots/Sairam-Jammu-Capstone-Image-R1.jpg) | ![Shiny dashboard for region R2](screenshots/Sairam-Jammu-Capstone-Image-R2.jpg) |
+
+| Region R3 | Region R4 |
+| --- | --- |
+| ![Shiny dashboard for region R3](screenshots/Sairam-Jammu-Capstone-Image-R3.jpg) | ![Shiny dashboard for region R4](screenshots/Sairam-Jammu-Capstone-Image-R4.jpg) |
+
+The dashboard views show region filtering, month selection, discount filtering, sales trend visualization, and searchable tabular output.
 
 ## Portfolio Value
 
